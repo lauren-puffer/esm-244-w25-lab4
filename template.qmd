@@ -1,8 +1,13 @@
 ---
-title: "Untitled"
+title: "ESM 244 - Lab 4 - PCA"
+author: "Lauren Puffer"
 format: html
+  embed-resources: true
+  code-fold: show
 execute:
   eval: false
+  message: false
+  warning: false
 ---
 
 
@@ -10,7 +15,8 @@ execute:
 
 library(tidyverse)
 library(here)
-library(ggfortify) # For PCA biplot
+library(ggfortify)
+library(here)# For PCA biplot
 
 ```
 
@@ -29,7 +35,30 @@ Load in the data using `read_csv`. Perform some exploratory analysis on the data
 
 
 ```{r}
+#change country and hdi code to factors & drop NAs
+hdi_raw <- read.csv(here("data","hdi_clean.csv"))
 
+hdi_df <- read.csv(here("data","hdi_clean.csv")) |>
+  mutate(hdicode = as.factor(hdicode),
+         country = as.factor(country)) |>
+  drop_na() 
+
+#pivot longer
+hdi_long <- hdi_df |>
+  pivot_longer(names_to= 'name', values_to = 'value', where(is.numeric))
+  
+#plot histo
+hdi_hist <- ggplot(hdi_long,aes(x= value))+
+  geom_histogram()+
+  facet_wrap(~name, scales='free_x')
+
+#change hdi codes to factors w/ levels, and mutate income to log(income)
+hdi_data <- hdi_raw |>
+  drop_na()|>
+  mutate(gnipc_2021= log(gnipc_2021)) |>
+  mutate(hdicode=factor(hdicode, 
+                        levels= c("Low","Medium","High","Very High")))
+  
 ```
 
 
@@ -37,9 +66,12 @@ Load in the data using `read_csv`. Perform some exploratory analysis on the data
 Run the pca using the `prcomp` function. What extra argument do we need to include? Make sure to select only the numeric columns for the pca
 
 ```{r}
-hdi_pca <- hdi_data %>% 
-  select(...) %>%
-  prcomp(...  )
+#use where(is.numeric) to only select columns with numeric values
+hdi_pca <- hdi_data |> 
+  select(where(is.numeric)) |>
+  prcomp(scale = TRUE)
+
+#in console use summary() to get cumulative proportion of variance ~0.80
 ```
 
 
@@ -69,17 +101,29 @@ Create a dataframe with the necessary indgreidents to make a screeplot. One piec
 ```{r}
 pc_names <- colnames(hdi_pca$rotation)
 
+pca_sum <- summary(hdi_pca)
+prop_pca <- pca_sum$importance[2,]
+
+#alt method (longer)
+sd_vec <- hdi_pca$sdev
+var_vec <- sd_vec^2
+pct_v <- var_vec/sum(var_vec)
+
+
+
 # Use this data frame to make the screeplot
 pct_expl_df <- data.frame(pc=pc_names,
-                          
-  
-  
-)
+                          pct_v=prop_pca,
+                          v=var_vec)
 
 # Screeplot
-
-
-
+scree_hdi <- ggplot(pct_expl_df, aes(x=pc, y=pct_v)) +
+  geom_col() +
+  theme_bw() +
+  labs(x= "Principal Component", y= "Percent Variation") +
+  scale_y_continuous(labels=scales::percent, expand=c(0,0)) #expand=c(0,0) gets rid                                                               of ugly space
+scree_hdi
+                      
 ```
 
 
@@ -107,8 +151,7 @@ autoplot(hdi_pca,
      	loadings.label = TRUE,
      	loadings.colour = "black",
      	loadings.label.colour = "black",
-     	loadings.label.vjust = -0.5
-     	) +
+     	loadings.label.vjust = -0.5) +
   scale_color_manual(values = c('red', 'orange', 'yellowgreen', 'darkgreen')) +
   theme_minimal()
 
